@@ -1,0 +1,9 @@
+.DS_Store
+*.py[co]
+*.egg-info
+*.bak
+*.sql
+*.pid
+*.db
+*.sw[po]
+local*

@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}{{ _("Login") }}{% end %}
+{% block container %}
+<div id="login-box">
+    <div class="form-box">
+        <h2>{{ _("Login") }}</h2>
+        {% from redisadmin.filters import field_errors %}
+        <form action="" method="POST">
+            {{ xsrf_form_html() }}
+            <div class="form-field">
+                {{ form.username.label() }} 
+                {{ form.username(class_="text") }}
+                {{ field_errors(form.username) }}
+            </div>
+            <div class="form-field">
+                {{ form.password.label() }}
+                {{ form.password(class_="text") }}
+            </div>
+            <div class="form-field">
+                {{ form.submit(class_="form-button") }}
+                {{ field_errors(form.submit) }}
+            </div>
+        </form>
+    </div>
+</div>
+{% end %}
+

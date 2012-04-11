@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+{% block title %}Redis web manager by tornado{% end %}
+{% block css %}
+<link rel="stylesheet" href="{{ static_url('js/jquery.treeview.css') }}" />
+{% end %}
+{% block js %}
+<script type="text/javascript" src="{{ static_url('js/jquery.treeview.js') }}"></script>
+<script type="text/javascript">
+function initTree() {
+    $('#menu ul').treeview({
+        collapsed: true,
+        animated: "fast",
+        control:"#sidetreecontrol",
+        persist: "location"
+    })
+}
+
+function flushAll() {
+    var r = confirm("Are you sure remove all keys from all databases?");
+    if (r) {
+        $.getJSON('{{ reverse_url('flush_all') }}', function(data){
+            if (data.success) location.reload();
+            else alert('flush failed');
+        })
+    }
+}
+
+function flushDB() {
+    var r = confirm("Are you sure remove all keys from the current database?");
+    if (r) {
+        $.getJSON('{{ reverse_url('flush_db') }}', function(data){
+            if (data.success) location.reload();
+            else alert('flush failed');
+        })
+    }
+}
+
+function delete(key) {
+    var r = confirm("Are you sure delete this key?");
+    if (r) {
+        $.getJSON('{{ reverse_url('delete') }}', {'key':key}, function(data){
+            if (data.success) {
+                var html = ' \
+                    <tr> \
+                        <th>This key is deleted.</th> \
+                    </tr> \
+                    ';
+            } else {
+                var html = ' \
+                    <tr> \
+                        <th>This key delete failed.</th> \
+                    </tr> \
+                    ';
+            }
+            $('#data-box table tbody').html(html);
+        })
+    }
+}
+
+function move(key) {
+    var db = prompt("Move a key to which database?", "1");
+    if (db!=null && db!='') {
+        $.getJSON('{{ reverse_url('move') }}', {'key':key, 'db':db}, function(data){
+            if (data.success) {
+                var html = ' \
+                    <tr> \
+                        <th>This key is removed.</th> \
+                    </tr> \
+                    ';
+            } else {
+                var html = ' \
+                    <tr> \
+                        <th>This key remove failed.</th> \
+                    </tr> \
+                    ';
+            }
+            $('#data-box table tbody').html(html);
+        })
+    }
+}
+
+function expire(key) {
+    var seconds = prompt("Set number of this key's time to live in seconds?", "3600");
+    if (seconds!=null && seconds!='') {
+        $.getJSON('{{ reverse_url('expire') }}', {'key':key, 'seconds':seconds}, function(data){
+            if (data.success) {
+                var message = '<p>This key is expired.<p>';
+            } else {
+                var message = '<p>This key expire failed.<p>';
+            }
+            $('#data-box table').before(message);
+        })
+    }
+}
+
+function getInfo() {
+    $.getJSON('{{ reverse_url('info') }}', function(data){
+        var html = ' \
+            <h2>Redis Server Info</h2> \
+            <div class="options"> \
+                <ul> \
+                    <li><a href="javascript:;" onclick="flushAll()">Flush All</a></li> \
+                    <li><a href="javascript:;" onclick="flushDB();">Flush DB</a></li> \
+                </ul> \
+            </div> \
+            <table class="info">';
+        $.each(data, function(i,d){
+            html += "<tr><th>"+d[0]+"</th><td>"+d[1]+"</td></tr>";
+            })
+        html += '</table>';
+        $('#data-box').html(html);
+        sidebarHeight();
+    })
+}
+
+function createMenuNode(data){
+    if (data=='') return data;
+    var html = '<ul class="filetree">';
+    $.each(data, function(i,d){
+        var text = '';
+        if (d['children']!='') {
+            text = '<a href="javascript:;"><span class="folder" data-root="' + d['id'] + '">' + d['text'] + '</span></a>';
+        } else {
+            text = '<a href="javascript:;" class="key" data-key="'+ d['id'] +'">' + d['text'] + '</a>';
+        }
+        html += "<li>" + text + createMenuNode(d['children']) + "</li>";
+        })
+    html += '</ul>';
+    return html;
+}
+
+function getMenu(q) {
+    $.getJSON('{{ reverse_url('menu') }}', {'q':q}, function(data){
+        html = createMenuNode(data);
+        $('#menu').html(html);
+        initTree();
+        sidebarHeight();
+    })
+}
+
+function getValue(key) {
+    $.getJSON('{{ reverse_url('value') }}', {'key': key}, function(data){
+        if (data.value!=null && data.value!='') {
+            var html = ' \
+                <h2>[' + data.type + ']' + data.key + '</h2> \
+                <div class="options"> \
+                    <ul> \
+                        <li><a href="#">Edit</a></li> \
+                        <li><a href="javascript:;" onclick="expire(\''+ data.key +'\')">Expire</a></li> \
+                        <li><a href="javascript:;" onclick="move(\''+ data.key +'\')">Move</a></li> \
+                        <li><a href="javascript:;" onclick="delete(\''+ data.key +'\')">Delete</a></li> \
+                    </ul> \
+                </div> \
+                <table>';
+
+            if (typeof(data.value)=='string') {
+                html += '<tr><th>Value</th></tr> \
+                    <tr><td>'+ data.value +'</td></tr>';
+            } else {
+                $.each(data.value, function(k,v){
+                    html += ' \
+                    <tr> \
+                        <th>' + k + '</th> \
+                        <td>' + v + '</td> \
+                    </tr>';
+                })
+            }
+            html += '</table>';
+        } else {
+            var html = '<h2>This key is not found.</h2>';
+        }
+        $('#data-box').html(html);
+        sidebarHeight();
+    })
+}
+
+function getList(root, page) {
+    $.getJSON('{{ reverse_url('list') }}', {'root': root, 'page':page}, function(json){
+        var ths = new Array();
+        var $box = $('<div> \
+            <h2>' + root + '</h2> \
+            <div class="options"> \
+                <p>View the sub-key, and display all data if hash keys</p> \
+            </div> \
+            <table> \
+            </table></div>');
+        var $thead = $('<thead><tr><th>Key</th></tr></thead>');
+        var $tbody = $('<tbody><tbody>');
+        if (json.data!='') {
+            $.each(json.data, function(index, item){
+                // td-box
+                var tds = '<tr>';
+                $.each(ths, function(i,k){
+                    tds += '<td class="'+ k +'"></td>';
+                })
+                tds += '</tr>';
+                var $tds = $(tds);
+                
+                // each data
+                $.each(item[1], function(k,v){
+                    if ($.inArray(k, ths)==-1) {
+                        $thead.find('tr').append('<th>'+ k +'</th>');
+                        ths.push(k);
+                        $tds.append('<td class="'+ k +'">'+ v +'</td>');
+                        $tbody.find('tr').append('<td></td>');
+                    } else {
+                        $tds.find('td.'+k).html(v);
+                    }
+                });
+
+                $tbody.append('\
+                    <tr> \
+                        <th><a class="key" href="javascript:;">' + item[0] + '</a></th>' + $tds.html() + ' \
+                    </tr>');
+            });
+            if (json.iter_pages!='') {
+                var page_html = '';
+                $.each(json.iter_pages, function(i, p){
+                    if (p) {
+                        if (json.page==p) {
+                            page_html += '<span class="current">'+p+'</span>';
+                        } else {
+                            page_html += '<a href="javascript:;" data-root="'+json.root+'" data-page="'+p+'">'+p+'</a>';
+                        }
+                    } else {
+                        page_html += '<span class="ellipsis">...</span>';
+                    }
+                })
+                $box.append('<div class="pagination">' + page_html + '</div>');
+            };
+        } else {
+            $tbody.append('\
+                <tr> \
+                    <th>No sub-key in this root, please select children root on left.<th> \
+                </tr>');
+        }
+        $box.find('table').html('<thead>' + $thead.html() + '</thead><tbody>' + $tbody.html() + '</tbody>');
+        $('#data-box').html($box.html());
+        sidebarHeight();
+    })
+}
+
+$(function(){
+    var q = $('#search form input[name=q]').val();
+    if (q) getMenu(q);
+    getInfo();
+    $('#search form').submit(function(){
+        getMenu($(this).find('input[name=q]').val());
+        return false;
+    })
+    $('body').delegate('a.key', 'click', function(){
+        getValue($(this).text());
+    })
+    $('#menu').delegate('li>a>span.folder', 'click', function(){
+        getList($(this).data('root'), 1);
+    })
+    $('body').delegate('.pagination a', 'click', function(){
+        getList($(this).data('root'), $(this).data('page'));
+    })
+})
+
+</script>
+{% end %}
+
+{% block sidebar %}
+<div id="search">
+    <form action="/" method="post">
+        <input name="q" type="text" class="text" value="{{ handler.get_args('q','') or '*' }}" />
+    </form>
+</div>
+<div id="menu"></div>
+{% end %}
+
+{% block content %}
+<div id="data-box"></div>
+{% end %}
+

@@ -1,0 +1,71 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}{% end %} - Redis Admin</title>
+    <link href="{{ static_url('style/favicon.png') }}" rel='shortcut icon' />
+    <link rel="stylesheet" href="{{ static_url('style/base.css') }}" />
+    {% block css %}{% end %}
+    <script type="text/javascript" src="{{ static_url('js/jquery.min.js') }}"></script>
+    <script type="text/javascript">
+    function sidebarHeight() {
+        $('.sidebar').css('height', $('.content').height());
+    }
+    </script>
+    {% block js %}{% end %}
+</head>
+<body>
+<div id="wrap">
+    {% set messages = handler.get_flashed_messages() %}
+    {% if messages %}
+    <div id="flashed">
+        {% for category, msg in messages %}
+        <span class="flash-{{ category }}">{{ msg }}</span>
+        {% end %}
+    </div>
+    {% end %}
+    <div id="header">
+        <div class="inner">
+            <h1>Redis Admin</h1>
+            <div id="nav">
+                <ul>
+                    <li>
+                        <a href="#">{{ _("Connection") }}</a>
+                    </li>
+                    <li>
+                        <a href="javascript:;" onclick="getInfo();">{{ _("Info") }}</a>
+                    </li>
+                    <li>
+                        <a href="#">{{ _("Backup") }}</a>
+                    </li>
+                </ul>
+            </div>
+            <div class="account">
+            {% if current_user %}
+            <a href="{{ reverse_url('logout') }}">{{ _("logout") }}</a>
+            {% else %}
+                <p>Please login.</p>
+            {% end %}
+            </div>
+        </div>
+    </div>
+    <div id="container">
+        {% block container %}
+        <div class="inner clearfix">
+            <div class="sidebar">
+            {% block sidebar %}{% end %}
+            </div>
+            <div class="content">
+            {% block content %}{% end %}
+            </div>
+        </div>
+        {% end %}
+    </div>
+    <div id="footer">
+        <div class="inner">
+            <p class="info"><span>Copyright &copy; laoqiu.com Аll Rights Reserved. </span>Powered by tornado. </p>
+        </div>
+    </div>
+</div>
+</body>
+</html>
