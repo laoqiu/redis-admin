@@ -12,12 +12,12 @@ Redis admin by tornado
     4. 当点击keys菜单(比如session:*)，需要合并出所有“session:”子键的data，作出类似select * from table的效果. 并加入分页处理.
     5. 全局功能: flushall, flushdb,info
     6. keys功能: edit, expire, move, delete
-    7. 切换db功能 (connect db)
-    8. 备份功能 (backup)
 
 
-已完成功能：
+待完成功能：
 --------
 
-    * __截止2012.4.11__:  完成1, 2, 3, 4, 5, 6(除edit)
+    1. 切换db功能 (connect db)
+    2. 备份功能 (backup)
+    3. list不具备指定value的删除, 需要添加pop功能（new)
 
