@@ -156,4 +156,3 @@ class RedisSession(object):
             self._store.set_session(self._sid, self._data, 'data', self._expiry)
             self._dirty = False
 
-

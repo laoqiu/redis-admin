@@ -65,7 +65,11 @@ blockquote {
 .clearfix{
     zoom:1; /* IE < 8 */
 }
-
+.tips {
+    margin-bottom: 10px;
+    padding: 0 10px;
+    color: #999;
+}
 .error-no-data {
     line-height: 1.6em;
 }
@@ -81,6 +85,20 @@ blockquote {
     text-align: center;
 }
 
+#loading {
+    position: fixed;
+    left: 50%;
+    top: 40%;
+    padding: 15px;
+    width: 32px;
+    height: 32px;
+    background: #fff;
+    opacity: 0.7;
+    -moz-border-radius: 5px;
+    -khtml-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    border-radius: 5px;
+}
 
 #wrap {
     margin: auto;

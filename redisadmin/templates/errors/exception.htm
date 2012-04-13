@@ -83,7 +83,6 @@
 <div id="header">
     <h1>HTTP Status {{ status_code }}</h1>
 </div>
-
 {% if exception %}
     {% set traceback_list = traceback.extract_tb(tback) %}
     {% set filepath, line, method, code = traceback_list[-1] %}
@@ -159,11 +158,8 @@
         </div>
     </div>
 {% end %}
-
 <div id="footer">
     Tornado v{{ tornado.version }}
 </div>
-    
-    
 </body>
 </html>

@@ -208,5 +208,3 @@ class Permission(object):
         permission
         """
         return self.require(identity=identity).can()
-
-

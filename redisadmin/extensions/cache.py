@@ -123,5 +123,3 @@ class cached_property(object):
             value = self.func(obj)
             obj.__dict__[self.__name__] = value
         return value
-
-

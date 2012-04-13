@@ -35,7 +35,7 @@ function flushDB() {
     }
 }
 
-function delete(key) {
+function deleteKey(key) {
     var r = confirm("Are you sure delete this key?");
     if (r) {
         $.getJSON('{{ reverse_url('delete') }}', {'key':key}, function(data){
@@ -95,21 +95,24 @@ function expire(key) {
 
 function getInfo() {
     $.getJSON('{{ reverse_url('info') }}', function(data){
-        var html = ' \
-            <h2>Redis Server Info</h2> \
-            <div class="options"> \
-                <ul> \
-                    <li><a href="javascript:;" onclick="flushAll()">Flush All</a></li> \
-                    <li><a href="javascript:;" onclick="flushDB();">Flush DB</a></li> \
-                </ul> \
-            </div> \
-            <table class="info">';
-        $.each(data, function(i,d){
-            html += "<tr><th>"+d[0]+"</th><td>"+d[1]+"</td></tr>";
-            })
-        html += '</table>';
-        $('#data-box').html(html);
-        sidebarHeight();
+        if (data!=null & data!='') {
+            var html = ' \
+                <h2>Redis Server Info</h2> \
+                <div class="options"> \
+                    <ul> \
+                        <li><a href="javascript:;" onclick="flushAll()">Flush All</a></li> \
+                        <li><a href="javascript:;" onclick="flushDB();">Flush DB</a></li> \
+                    </ul> \
+                </div> \
+                <table class="info">';
+            $.each(data, function(i,d){
+                html += "<tr><th>"+d[0]+"</th><td>"+d[1]+"</td></tr>";
+                })
+            html += '</table>';
+            $('#data-box').html(html);
+            sidebarHeight();
+        } else { alert('server error!');
+        }
     })
 }
 
@@ -124,7 +127,7 @@ function createMenuNode(data){
             text = '<a href="javascript:;" class="key" data-key="'+ d['id'] +'">' + d['text'] + '</a>';
         }
         html += "<li>" + text + createMenuNode(d['children']) + "</li>";
-        })
+    })
     html += '</ul>';
     return html;
 }
@@ -145,13 +148,15 @@ function getValue(key) {
                 <h2>[' + data.type + ']' + data.key + '</h2> \
                 <div class="options"> \
                     <ul> \
-                        <li><a href="#">Edit</a></li> \
+                        <li><a href="javascript:;" onclick="append(\''+ data.key +'\', \''+ data.type +'\')">Add</a></li> \
+                        <li><a href="javascript:;" onclick="getValue(\''+ data.key +'\')">Refresh</a></li> \
                         <li><a href="javascript:;" onclick="expire(\''+ data.key +'\')">Expire</a></li> \
                         <li><a href="javascript:;" onclick="move(\''+ data.key +'\')">Move</a></li> \
-                        <li><a href="javascript:;" onclick="delete(\''+ data.key +'\')">Delete</a></li> \
+                        <li><a href="javascript:;" onclick="deleteKey(\''+ data.key +'\')">Delete</a></li> \
                     </ul> \
                 </div> \
-                <table>';
+                <div class="tips">Please double click item to edit it, and ctrl+enter to submit. </div> \
+                <table data-key="'+ data.key +'" data-type="'+ data.type +'">';
 
             if (typeof(data.value)=='string') {
                 html += '<tr><th>Value</th></tr> \
@@ -240,6 +245,90 @@ function getList(root, page) {
     })
 }
 
+function editValue(obj) {
+    if (!obj.hasClass('edit') & !obj.parents('table').hasClass('info')) {
+        var key = obj.parents('table').data('key');
+        var type = obj.parents('table').data('type');
+        var field = obj.text();
+        if (type=='hash') field = obj.prev().text();
+        var del = '';
+        if ($.inArray(type, ['hash','set','zset'])!=-1) {
+            del = 'or you can <input type="button" value="Delete it" onclick="deleteFeild(\''+key+'\', \''+ field +'\');" />';
+        }
+        var html = ' \
+           <form> \
+           <input type="hidden" name="k" value="'+ key +'" /> \
+           <input type="hidden" name="i" value="'+ obj.prev().text() +'" /> \
+           <input type="hidden" name="f" value="'+ obj.text() +'" /> \
+           <textarea name="v">'+ obj.text() +'</textarea> \
+           '+ del +'</form>';
+        obj.addClass('edit').html(html);
+    }
+}
+
+function editDone(form) {
+    var key = form.find('input[name=k]').val();
+    var index = form.find('input[name=i]').val();
+    var field = form.find('input[name=f]').val();
+    var value = form.find('textarea[name=v]').val();
+    $.getJSON('{{ reverse_url('edit') }}', {'key': key, 'index': index, 'field': field, 'value': value}, function(json){
+        if (json.success) {
+            form.parent().removeClass('edit').html(form.find('textarea[name=v]').val());
+        } else { alert('server error!');
+        }
+    })
+}
+
+function append(key, type) {
+    if (!$('#data-box table tbody tr:last').hasClass('append')) {
+        var $tr = $('<tbody><tr class="append"><th></th><td><form></form></td></tr></tbody>');
+        var $form = $tr.find('form');
+        var $th = $tr.find('th');
+        switch (type) {
+            case 'string':
+                $tr.find('th').remove();
+                break;
+            case 'hash':
+                var field = prompt("Please input a field name by new value:");
+                if (field==null | field=='') return 
+                $form.append('<input type="hidden" name="field" value="'+ field +'" />');
+                $th.html(field);
+                break;
+            case 'zset':
+                var score = prompt("Please input a score by new member:");
+                if (score==null | score=='') return
+                $form.append('<input type="hidden" name="score" value="'+ score +'" />');
+                $th.html('score:' + score);
+                break;
+            default:
+                break;
+        }
+        $form.append('<input type="hidden" name="key" value="'+ key +'" />');
+        $form.append('<textarea name="value"></textarea>');
+        $('#data-box table tbody').append($tr.html()).find('textarea').focus();
+    }
+}
+
+function addValue(form) {
+    var data = form.serialize();
+    var key = form.find('input[name=key]').val();
+    $.getJSON('{{ reverse_url('add') }}', data, function(json){
+        if (json.success) {
+            getValue(key);
+        } else { alert('server error!');
+        }
+    })
+}
+
+function deleteFeild(key, field) {
+    $.getJSON('{{ reverse_url('remove') }}', {'key':key, 'field':field}, function(json){
+        if (json.success) {
+            getValue(key);
+        } else { alert('server error!');
+        }
+    })
+}
+
 $(function(){
     var q = $('#search form input[name=q]').val();
     if (q) getMenu(q);
@@ -254,9 +343,30 @@ $(function(){
     $('#menu').delegate('li>a>span.folder', 'click', function(){
         getList($(this).data('root'), 1);
     })
+    $('#data-box').delegate('td', 'dblclick', function(){
+        editValue($(this));
+    })
+    $('#data-box').delegate('textarea[name=v]', 'keydown', function(event){
+        if(event.ctrlKey && event.keyCode==13){
+            var form = $(this).parents('form');
+            editDone(form);
+        }
+    })
+    $('#data-box').delegate('textarea[name=value]', 'keydown', function(event){
+        if(event.ctrlKey && event.keyCode==13){
+            var form = $(this).parents('form');
+            addValue(form);
+        }
+    })
     $('body').delegate('.pagination a', 'click', function(){
         getList($(this).data('root'), $(this).data('page'));
     })
+    $("#loading").ajaxStart(function(){
+        $(this).show();
+    });
+    $("#loading").ajaxStop(function(){
+        $(this).hide();
+    });  
 })
 
 </script>

@@ -95,5 +95,3 @@ class TornadoInputWrapper(dict):
                 v = v.strip()
             values.append(v)
         return values
-        
-        

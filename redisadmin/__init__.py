@@ -11,8 +11,6 @@ import redis
 import tornado.web
 import tornado.locale
 
-# from tornado.web import url
-
 from redisadmin import settings as config
 from redisadmin import uimodules
 from redisadmin.helpers import setting_from_object
