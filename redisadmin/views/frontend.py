@@ -23,6 +23,19 @@ class Index(RequestHandler):
         return 
 
 
+@route("/connection", name='connection')
+class Connection(RequestHandler):
+    @tornado.web.authenticated
+    def get(self):
+        db  = self.get_args('db', 0, type=int)
+
+        self.session['db'] = db
+        self.session.save()
+
+        self.write(dict(success=True))
+        return
+
+
 @route("/menu", name='menu')
 class Menu(RequestHandler):
     @tornado.web.authenticated
@@ -57,6 +70,86 @@ class Menu(RequestHandler):
         
         self.write(json.dumps(menu))
         return 
+
+
+@route("/new", name='new')
+class New(RequestHandler):
+    @tornado.web.authenticated
+    def get(self):
+        key = self.get_args('key')
+        _type = self.get_args('type')
+        value = self.get_args('value')
+
+        if key and value and _type in ['string', 'hash', 'list', 'set', 'zset']:
+
+            if self.redis.exists(key):
+                self.write(dict(success=False, error=u"Key is exists!"))
+                return
+
+            if _type=='string':
+                self.redis.set(key, value)
+
+            elif _type=='hash':
+                value = value.replace('\'', '"')
+                print value
+                try:
+                    value = json.loads(value)
+                except:
+                    self.error()
+                    return
+                else:
+                    if isinstance(value, dict):
+                        for field,v in value.items():
+                            self.redis.hset(key, field, str(v))
+                    else:
+                        self.error()
+                        return
+
+            elif _type=='list':
+                try:
+                    value = json.loads(value)
+                except:
+                    self.error()
+                    return
+                else:
+                    if isinstance(value, list):
+                        for v in value:
+                            self.redis.rpush(str(v))
+                    else:
+                        self.error()
+                        return
+
+            elif _type=='set':
+                try:
+                    value = json.loads(value)
+                except:
+                    self.error()
+                    return
+                else:
+                    if isinstance(value, list):
+                        for v in value:
+                            self.redis.sadd(str(v))
+                    else:
+                        self.error()
+                        return
+
+            elif _type=='zset':
+                score = self.get_args('score')
+                if score: 
+                    self.redis.zadd(key, score, value)
+                else:
+                    self.error()
+                    return
+
+            self.write(dict(success=True))
+            return
+
+        self.error()
+        return
+        
+    def error(self):
+        self.write(dict(success=False, error="New key create failed, check form and value is valid."))
+        return
 
 
 @route("/value", name='value')
@@ -276,7 +369,8 @@ class Add(RequestHandler):
                 if _type == 'string':
                     result = self.add_strings(key, value)
                 elif _type == 'list':
-                    result = self.add_lists(key, value)
+                    pos = self.get_args('pos','r')
+                    result = self.add_lists(key, value, pos)
                 elif _type == 'hash':
                     field = self.get_args('field', '')
                     result = self.add_hashs(key, field, value) if field else False
@@ -284,7 +378,7 @@ class Add(RequestHandler):
                     result = self.add_sets(key, value)
                 elif _type == 'zset':
                     score = self.get_args('score','')
-                    result = self.add_sortedsets(key, field, value) if score else False
+                    result = self.add_sortedsets(key, score, value) if score else False
                 else:
                     logging.error('Unexpected key type by %s' % key)
                     result = False
@@ -299,9 +393,12 @@ class Add(RequestHandler):
         """ return a length with key """
         return self.redis.append(key, value)
         
-    def add_lists(self, key, value):
+    def add_lists(self, key, value, pos):
         """ return a index with key """
-        return self.redis.rpush(key, value)
+        if pos=='r':
+            return self.redis.rpush(key, value)
+        else:
+            return self.redis.lpush(key, value)
         
     def add_hashs(self, key, field, value):
         """ return a changed lines with key """
@@ -338,6 +435,36 @@ class Remove(RequestHandler):
                     result = self.redis.zrem(key, field)
                 else:
                     logging.error('Unexpected key type by %s' % key)
+                    result = False
+
+                self.write(dict(success=result))
+                return
+
+        self.write(dict(success=False))
+        return
+
+
+@route("/pop", name="pop")
+class Pop(RequestHandler):
+    @tornado.web.authenticated
+    def get(self):
+        
+        key = self.get_args('key', '')
+        pos = self.get_args('pos', 'l')
+        
+        if key:
+    
+            if self.redis.exists(key):
+
+                _type = self.redis.type(key)
+
+                if _type == 'list':
+                    if pos=='r':
+                        result = self.redis.rpop(key)
+                    else:
+                        result = self.redis.lpop(key)
+                else:
+                    logging.error('Can not pop by key %s' % key)
                     result = False
 
                 self.write(dict(success=result))

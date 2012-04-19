@@ -122,9 +122,9 @@ function createMenuNode(data){
     $.each(data, function(i,d){
         var text = '';
         if (d['children']!='') {
-            text = '<a href="javascript:;"><span class="folder" data-root="' + d['id'] + '">' + d['text'] + '</span></a>';
+            text = '<a href="/#!/'+d['id']+'"><span class="folder" data-root="' + d['id'] + '">' + d['text'] + '</span></a>';
         } else {
-            text = '<a href="javascript:;" class="key" data-key="'+ d['id'] +'">' + d['text'] + '</a>';
+            text = '<a href="/#!/'+d['id']+'" class="key" data-key="'+ d['id'] +'">' + d['text'] + '</a>';
         }
         html += "<li>" + text + createMenuNode(d['children']) + "</li>";
     })
@@ -143,22 +143,51 @@ function getMenu(q) {
 
 function getValue(key) {
     $.getJSON('{{ reverse_url('value') }}', {'key': key}, function(data){
-        if (data.value!=null && data.value!='') {
+        var special_options = '';
+        switch (data.type) {
+            case 'string':
+                break;
+            case 'list':
+                special_options = ' \
+                    <li><a href="javascript:;" onclick="append(\''+ data.key +'\', \''+ data.type +'\', \'l\')">LPUSH</a></li> \
+                    <li><a href="javascript:;" onclick="append(\''+ data.key +'\', \''+ data.type +'\', \'r\')">RPUSH</a></li> \
+                    <li><a href="javascript:;" onclick="listPop(\''+ data.key +'\', \'l\')">LPOP</a></li> \
+                    <li><a href="javascript:;" onclick="listPop(\''+ data.key +'\', \'r\')">RPOP</a></li> \
+                    ';
+                break;
+            case 'hash':
+                special_options = ' \
+                    <li><a href="javascript:;" onclick="append(\''+ data.key +'\', \''+ data.type +'\', \'\')">Set</a></li> \
+                    ';
+                break;
+            case 'set':
+                special_options = ' \
+                    <li><a href="javascript:;" onclick="append(\''+ data.key +'\', \''+ data.type +'\', \'\')">Add</a></li> \
+                    ';
+                break;
+            case 'zset':
+                special_options = ' \
+                    <li><a href="javascript:;" onclick="append(\''+ data.key +'\', \''+ data.type +'\', \'\')">Add</a></li> \
+                    ';
+                break;
+            default:
+                break;
+        }
+        if (data.value!=null) {
             var html = ' \
                 <h2>[' + data.type + ']' + data.key + '</h2> \
                 <div class="options"> \
                     <ul> \
-                        <li><a href="javascript:;" onclick="append(\''+ data.key +'\', \''+ data.type +'\')">Add</a></li> \
-                        <li><a href="javascript:;" onclick="getValue(\''+ data.key +'\')">Refresh</a></li> \
                         <li><a href="javascript:;" onclick="expire(\''+ data.key +'\')">Expire</a></li> \
                         <li><a href="javascript:;" onclick="move(\''+ data.key +'\')">Move</a></li> \
-                        <li><a href="javascript:;" onclick="deleteKey(\''+ data.key +'\')">Delete</a></li> \
+                        <li><a href="javascript:;" onclick="getValue(\''+ data.key +'\')">Refresh</a></li> \
+                        <li><a href="javascript:;" onclick="deleteKey(\''+ data.key +'\')">Delete</a></li>'+ special_options +' \
                     </ul> \
                 </div> \
                 <div class="tips">Please double click item to edit it, and ctrl+enter to submit. </div> \
-                <table data-key="'+ data.key +'" data-type="'+ data.type +'">';
+                <table class="view" data-key="'+ data.key +'" data-type="'+ data.type +'">';
 
-            if (typeof(data.value)=='string') {
+            if (data.value=='' | typeof(data.value)=='string') {
                 html += '<tr><th>Value</th></tr> \
                     <tr><td>'+ data.value +'</td></tr>';
             } else {
@@ -187,7 +216,7 @@ function getList(root, page) {
             <div class="options"> \
                 <p>View the sub-key, and display all data if hash keys</p> \
             </div> \
-            <table> \
+            <table class="list"> \
             </table></div>');
         var $thead = $('<thead><tr><th>Key</th></tr></thead>');
         var $tbody = $('<tbody><tbody>');
@@ -279,7 +308,8 @@ function editDone(form) {
     })
 }
 
-function append(key, type) {
+function append(key, type, pos) {
+    // pos is used list.
     if (!$('#data-box table tbody tr:last').hasClass('append')) {
         var $tr = $('<tbody><tr class="append"><th></th><td><form></form></td></tr></tbody>');
         var $form = $tr.find('form');
@@ -287,6 +317,9 @@ function append(key, type) {
         switch (type) {
             case 'string':
                 $tr.find('th').remove();
+                break;
+            case 'list':
+                $form.append('<input type="hidden" name="pos" value="'+ pos +'" />');
                 break;
             case 'hash':
                 var field = prompt("Please input a field name by new value:");
@@ -329,38 +362,104 @@ function deleteFeild(key, field) {
     })
 }
 
+function listPop(key, pos) {
+    $.getJSON('{{ reverse_url('pop') }}', {'key':key, 'pos':pos}, function(json){
+        if (json.success) {
+            getValue(key);
+        } else { alert('server error!');
+        }
+    })
+}
+
+function connection(db, callback) {
+    $.getJSON('{{ reverse_url('connection') }}', {'db':db}, function(json){
+        if (json.success){
+            callback();
+        }
+    })
+}
+
 $(function(){
     var q = $('#search form input[name=q]').val();
     if (q) getMenu(q);
     getInfo();
+    $('#nav li a.info').click(function(){
+        getInfo();
+    });
+    $('#nav li a.connection').click(function(){
+        $('#connect-list').toggle('fast');
+    });
+    $('#nav li a.new').click(function(){
+        $('#new-box').toggle('fast');
+    });
+    $('#new-box select').change(function(){
+        if ($(this).val()=='zset') {
+            var tr_score = '\
+                    <tr class="zset-score">\
+                        <th><label for="new-score">Score:</label></th>\
+                        <td><input id="new-score" name="score" type="text" /></td>\
+                        </tr>';
+            $(this).parents('tr').after(tr_score);
+        } else {
+            var next = $(this).parents('tr').next();
+            if (next.hasClass('zset-score')) next.remove();
+        }
+    })
+    $('#new-box form').submit(function(){
+        var $this = $(this);
+        var key = $(this).find('input[name=key]').val();
+        var data = $(this).serialize();
+        $.getJSON('{{ reverse_url('new') }}', data, function(data){
+            if (data.success) {
+                getValue(key);
+                $('#nav a.new').click();
+                $this.find('input:text, textarea').val('');
+            } else {
+                alert(data.error);
+            }
+        })
+    })
     $('#search form').submit(function(){
         getMenu($(this).find('input[name=q]').val());
         return false;
-    })
+    });
+    $('#connect-list li a').click(function(){
+        var $this = $(this);
+        var callback = function(){
+            $('#menu').html('');
+            $this.parents('ul').find('a').removeClass('current');
+            $this.addClass('current');
+            $('#nav a.connection').click();
+            var q = $('#search form input[name=q]').val();
+            if (q) getMenu(q);
+        }
+        var db = $this.data('db');
+        connection(db, callback);
+    });
     $('body').delegate('a.key', 'click', function(){
         getValue($(this).text());
-    })
+    });
     $('#menu').delegate('li>a>span.folder', 'click', function(){
         getList($(this).data('root'), 1);
-    })
+    });
     $('#data-box').delegate('td', 'dblclick', function(){
         editValue($(this));
-    })
+    });
     $('#data-box').delegate('textarea[name=v]', 'keydown', function(event){
         if(event.ctrlKey && event.keyCode==13){
             var form = $(this).parents('form');
             editDone(form);
         }
-    })
+    });
     $('#data-box').delegate('textarea[name=value]', 'keydown', function(event){
         if(event.ctrlKey && event.keyCode==13){
             var form = $(this).parents('form');
             addValue(form);
         }
-    })
+    });
     $('body').delegate('.pagination a', 'click', function(){
         getList($(this).data('root'), $(this).data('page'));
-    })
+    });
     $("#loading").ajaxStart(function(){
         $(this).show();
     });
