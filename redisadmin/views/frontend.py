@@ -90,8 +90,6 @@ class New(RequestHandler):
                 self.redis.set(key, value)
 
             elif _type=='hash':
-                value = value.replace('\'', '"')
-                print value
                 try:
                     value = json.loads(value)
                 except:

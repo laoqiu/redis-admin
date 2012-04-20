@@ -23,9 +23,12 @@ Redis admin by tornado
     6. keys功能: edit, expire, move, delete
     7. 切换db功能 (connect db)
     8. list的pop和push功能
+    9. 添加新的key-value功能 
 
 
 待完成功能：
 --------
     1. 备份功能 (backup)
+    2. 加入管理员用户权限
+    3. 加入远程连接功能
 
